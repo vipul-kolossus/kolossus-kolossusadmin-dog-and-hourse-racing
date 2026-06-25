@@ -4,13 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EdgeBet Pro - Dog &amp; Horse Racing</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; }
     .app { min-height: 100vh; }
     .header {
       background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -189,293 +186,402 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const { useState, useEffect } = React;
+<script>
+(function() {
+  'use strict';
 
-const API = '';
+  const state = {
+    races: [], selectedRace: null, tab: 'all',
+    bets: [], stats: {}, loading: true, notif: null
+  };
 
-async function apiFetch(path, opts = {}) {
-  const res = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts
-  });
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
+  function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function fmt(n) { return parseFloat(n).toFixed(2); }
+  function getTimeLabel(race) {
+    if (race.status === 'live') return '&#128308; LIVE NOW';
+    if (race.status === 'finished') return '&#9989; Finished';
+    const diff = new Date(race.start_time) - new Date();
+    if (diff < 0) return 'Starting...';
+    const mins = Math.floor(diff / 60000);
+    return mins < 60 ? 'In ' + mins + 'm' : 'In ' + Math.floor(mins/60) + 'h ' + (mins%60) + 'm';
+  }
 
-function getTimeLabel(race) {
-  if (race.status === 'live') return '🔴 LIVE NOW';
-  if (race.status === 'finished') return '✅ Finished';
-  const diff = new Date(race.start_time) - new Date();
-  if (diff < 0) return 'Starting...';
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `In ${mins}m`;
-  return `In ${Math.floor(mins / 60)}h ${mins % 60}m`;
-}
+  async function apiFetch(path, opts) {
+    opts = opts || {};
+    const r = await fetch(path, Object.assign({ headers: {'Content-Type':'application/json'} }, opts));
+    if (!r.ok) { const e = await r.json().catch(()=>({error:'Request failed'})); throw e; }
+    return r.json();
+  }
 
-function fmt(n) { return parseFloat(n).toFixed(2); }
+  // ── Build HTML ──────────────────────────────────────────────────
 
-function Header({ stats }) {
-  return (
-    <header className="header">
-      <div className="header-brand">
-        <span className="header-logo">🏆</span>
-        <h1 className="header-title">EdgeBet <span>Pro</span></h1>
-        {stats.live_races > 0 && <span className="live-badge">🔴 {stats.live_races} Live</span>}
-      </div>
-      <div className="header-stats">
-        <div className="hstat"><div className="hstat-v">{stats.total_races || 0}</div><div className="hstat-l">Races</div></div>
-        <div className="hstat"><div className="hstat-v">{stats.total_bets || 0}</div><div className="hstat-l">Bets</div></div>
-        <div className="hstat"><div className="hstat-v">${(stats.total_wagered || 0).toFixed(0)}</div><div className="hstat-l">Wagered</div></div>
-      </div>
-    </header>
-  );
-}
+  function buildHeader() {
+    const s = state.stats;
+    return '<header class="header">' +
+      '<div class="header-brand">' +
+        '<span class="header-logo">&#127942;</span>' +
+        '<h1 class="header-title">EdgeBet <span>Pro</span></h1>' +
+        (s.live_races > 0 ? '<span class="live-badge">&#128308; ' + s.live_races + ' Live</span>' : '') +
+      '</div>' +
+      '<div class="header-stats">' +
+        '<div class="hstat"><div class="hstat-v">' + (s.total_races||0) + '</div><div class="hstat-l">Races</div></div>' +
+        '<div class="hstat"><div class="hstat-v">' + (s.total_bets||0) + '</div><div class="hstat-l">Bets</div></div>' +
+        '<div class="hstat"><div class="hstat-v">$' + ((s.total_wagered||0)|0) + '</div><div class="hstat-l">Wagered</div></div>' +
+      '</div>' +
+    '</header>';
+  }
 
-function StatsBar({ stats }) {
-  return (
-    <div className="stats-bar">
-      {[
-        { icon:'🏁', val: stats.total_races||0, label:'Total Races' },
-        { icon:'🔴', val: stats.live_races||0, label:'Live Now' },
-        { icon:'🐕', val: stats.dog_races||0, label:'Dog Races' },
-        { icon:'🐎', val: stats.horse_races||0, label:'Horse Races' },
-        { icon:'🎯', val: stats.total_bets||0, label:'Bets Placed' },
-        { icon:'💰', val: `$${(stats.total_wagered||0).toFixed(0)}`, label:'Total Wagered' },
-      ].map(s => (
-        <div className="stat-item" key={s.label}>
-          <span className="stat-icon">{s.icon}</span>
-          <div className="stat-info">
-            <span className="stat-value">{s.val}</span>
-            <span className="stat-label">{s.label}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+  function buildStatsBar() {
+    const s = state.stats;
+    const items = [
+      ['&#127937;', s.total_races||0, 'Total Races'],
+      ['&#128308;', s.live_races||0, 'Live Now'],
+      ['&#128021;', s.dog_races||0, 'Dog Races'],
+      ['&#127950;', s.horse_races||0, 'Horse Races'],
+      ['&#127919;', s.total_bets||0, 'Bets Placed'],
+      ['&#128176;', '$'+((s.total_wagered||0)|0), 'Total Wagered'],
+    ];
+    return '<div class="stats-bar">' + items.map(function(item) {
+      return '<div class="stat-item"><span class="stat-icon">' + item[0] + '</span>' +
+        '<div class="stat-info"><span class="stat-value">' + item[1] + '</span>' +
+        '<span class="stat-label">' + item[2] + '</span></div></div>';
+    }).join('') + '</div>';
+  }
 
-function RaceList({ races, loading, onSelect }) {
-  if (loading) return <div className="loading"><div className="spinner"/><p style={{color:'#6b7280'}}>Loading races...</p></div>;
-  if (!races.length) return <div className="loading"><p style={{color:'#6b7280',fontSize:16}}>No races found.</p></div>;
-  return (
-    <div className="race-grid">
-      {races.map(r => (
-        <div className="race-card" key={r.id} onClick={() => onSelect(r)}>
-          <div className="race-card-header">
-            <span className="type-badge">{r.race_type === 'dog' ? '🐕 Dog' : '🐎 Horse'}</span>
-            <span className={`status-badge status-${r.status}`}>
-              {r.status==='live'?'🔴 LIVE':r.status==='upcoming'?'⏰ Upcoming':'✅ Finished'}
-            </span>
-          </div>
-          <div className="race-card-body">
-            <h3 className="race-name">{r.name}</h3>
-            <div className="race-meta">
-              <span className="meta-item">📍 {r.track}</span>
-              <span className="meta-item">📏 {r.distance}</span>
-              <span className="meta-item">🐾 {r.participant_count} runners</span>
-            </div>
-            <div style={{fontSize:13,fontWeight:600,color:r.status==='live'?'#dc2626':'#374151'}}>{getTimeLabel(r)}</div>
-          </div>
-          <div className="race-card-footer">
-            <span className="prize">💰 Prize: ${parseFloat(r.prize_pool).toLocaleString()}</span>
-            <button className="view-btn">View Odds →</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+  function buildTabs() {
+    var tabs = [['all','&#127937; All Races'],['dog','&#128021; Dog Racing'],['horse','&#127950; Horse Racing']];
+    return '<div class="tabs">' + tabs.map(function(t) {
+      return '<button class="tab-btn' + (state.tab===t[0]?' active':'') + '" data-tab="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '</div>';
+  }
 
-function RaceDetail({ race, onBack, onAddBet }) {
-  const finished = race.status === 'finished';
-  const ps = [...(race.participants||[])].sort((a,b) => a.number - b.number);
-  return (
-    <div className="race-detail">
-      <div className="detail-header">
-        <button className="back-btn" onClick={onBack}>← Back</button>
-        <h2 className="detail-title">{race.name}</h2>
-        <div className="detail-meta">
-          <span>{race.race_type==='dog'?'🐕 Dog Racing':'🐎 Horse Racing'}</span>
-          <span>📍 {race.track}</span>
-          <span>📏 {race.distance}</span>
-          <span>💰 ${parseFloat(race.prize_pool).toLocaleString()}</span>
-          <span className={`status-badge status-${race.status}`}>{race.status==='live'?'🔴 LIVE':race.status==='upcoming'?'⏰ Upcoming':'✅ Finished'}</span>
-        </div>
-      </div>
-      <table className="ptable">
-        <thead>
-          <tr>
-            <th>#</th><th>Name</th>
-            {race.race_type==='horse'&&<th>Jockey</th>}
-            <th>Trainer</th><th>Form</th><th>Odds</th>
-            <th>{finished?'Result':'Bet'}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ps.map(p => (
-            <tr key={p.id}>
-              <td><span className="pnum">{p.number}</span></td>
-              <td>
-                <div className="pname">{p.name}</div>
-                {p.age&&<div style={{fontSize:11,color:'#9ca3af'}}>Age: {p.age}{p.weight?` · ${p.weight}`:''}</div>}
-              </td>
-              {race.race_type==='horse'&&<td style={{fontSize:13}}>{p.jockey||'—'}</td>}
-              <td style={{fontSize:13}}>{p.trainer||'—'}</td>
-              <td><span className="form">{p.form||'—'}</span></td>
-              <td><span className="odds">{fmt(p.odds)}</span></td>
-              <td>
-                {finished ? (
-                  p.position ? <span>{p.position===1?'🥇':p.position===2?'🥈':p.position===3?'🥉':`#${p.position}`}</span> : '—'
-                ) : (
-                  <button className="bet-btn" onClick={() => onAddBet(p, race)}>+ Bet</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+  function buildRaceList() {
+    if (state.loading) return '<div class="loading"><div class="spinner"></div><p style="color:#6b7280">Loading races...</p></div>';
+    if (!state.races.length) return '<div class="loading"><p style="color:#6b7280;font-size:16px">No races found.</p></div>';
+    return '<div class="race-grid">' + state.races.map(function(r) {
+      var statusLabel = r.status==='live' ? '&#128308; LIVE' : r.status==='upcoming' ? '&#9200; Upcoming' : '&#9989; Finished';
+      var typeLabel = r.race_type==='dog' ? '&#128021; Dog' : '&#127950; Horse';
+      return '<div class="race-card" data-raceid="' + r.id + '">' +
+        '<div class="race-card-header">' +
+          '<span class="type-badge">' + typeLabel + '</span>' +
+          '<span class="status-badge status-' + r.status + '">' + statusLabel + '</span>' +
+        '</div>' +
+        '<div class="race-card-body">' +
+          '<h3 class="race-name">' + esc(r.name) + '</h3>' +
+          '<div class="race-meta">' +
+            '<span class="meta-item">&#128205; ' + esc(r.track) + '</span>' +
+            '<span class="meta-item">&#128207; ' + esc(r.distance) + '</span>' +
+            '<span class="meta-item">&#128062; ' + (r.participant_count||0) + ' runners</span>' +
+          '</div>' +
+          '<div style="font-size:13px;font-weight:600;color:' + (r.status==='live'?'#dc2626':'#374151') + '">' + getTimeLabel(r) + '</div>' +
+        '</div>' +
+        '<div class="race-card-footer">' +
+          '<span class="prize">&#128176; Prize: $' + parseFloat(r.prize_pool).toLocaleString() + '</span>' +
+          '<button class="view-btn" data-raceid="' + r.id + '">View Odds &#8594;</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
 
-function BetSlip({ bets, onRemove, onUpdateAmount, onUpdateType, onPlace }) {
-  const totalStake = bets.reduce((s,b) => s + (parseFloat(b.amount)||0), 0);
-  const totalPot = bets.reduce((s,b) => s + ((parseFloat(b.amount)||0)*parseFloat(b.odds)), 0);
-  return (
-    <div className="bet-slip">
-      <div className="bs-title">🎰 Bet Slip {bets.length>0&&<span className="bet-cnt">{bets.length}</span>}</div>
-      {!bets.length ? (
-        <div className="empty-bs">
-          <div className="empty-icon">🎯</div>
-          <div style={{fontSize:14,fontWeight:500}}>Your bet slip is empty</div>
-          <div style={{fontSize:12,marginTop:6}}>Click &quot;Bet&quot; on any runner to add</div>
-        </div>
-      ) : (
-        <>
-          {bets.map(b => (
-            <div className="bet-item" key={b.id}>
-              <div className="bi-header">
-                <div>
-                  <div className="bi-pname">#{b.num} {b.name}</div>
-                  <div className="bi-race">{b.raceName}</div>
-                </div>
-                <button className="rm-btn" onClick={() => onRemove(b.id)}>×</button>
-              </div>
-              <div className="bi-odds">Odds: {fmt(b.odds)}</div>
-              <select className="btype-sel" value={b.betType} onChange={e=>onUpdateType(b.id,e.target.value)}>
-                <option value="win">Win</option>
-                <option value="place">Place</option>
-                <option value="each_way">Each Way</option>
-              </select>
-              <input type="number" className="bamount" placeholder="Amount ($)" min="1"
-                value={b.amount} onChange={e=>onUpdateAmount(b.id,e.target.value)} />
-              <div className="quick-btns">
-                {[10,20,50,100].map(a=>(
-                  <button key={a} className="qbtn" onClick={()=>onUpdateAmount(b.id,String(a))}>$\{a}</button>
-                ))}
-              </div>
-              {b.amount&&parseFloat(b.amount)>0&&(
-                <div className="pot-win">💰 Potential: ${(parseFloat(b.amount)*parseFloat(b.odds)).toFixed(2)}</div>
-              )}
-              <button className="place-btn" onClick={()=>onPlace(b)}>Place Bet</button>
-            </div>
-          ))}
-          {bets.length>1&&(
-            <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:12,marginTop:8}}>
-              <div style={{fontSize:13,color:'#374151',marginBottom:4}}><strong>Total Stake:</strong> ${totalStake.toFixed(2)}</div>
-              <div style={{fontSize:13,color:'#059669',fontWeight:700}}><strong>Total Potential:</strong> ${totalPot.toFixed(2)}</div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+  function buildRaceDetail() {
+    var race = state.selectedRace;
+    var finished = race.status === 'finished';
+    var ps = (race.participants||[]).slice().sort(function(a,b){ return a.number - b.number; });
+    var isHorse = race.race_type === 'horse';
+    var statusLabel = race.status==='live' ? '&#128308; LIVE' : race.status==='upcoming' ? '&#9200; Upcoming' : '&#9989; Finished';
+    return '<div class="race-detail">' +
+      '<div class="detail-header">' +
+        '<button class="back-btn" id="backBtn">&#8592; Back</button>' +
+        '<h2 class="detail-title">' + esc(race.name) + '</h2>' +
+        '<div class="detail-meta">' +
+          '<span>' + (isHorse?'&#127950; Horse Racing':'&#128021; Dog Racing') + '</span>' +
+          '<span>&#128205; ' + esc(race.track) + '</span>' +
+          '<span>&#128207; ' + esc(race.distance) + '</span>' +
+          '<span>&#128176; $' + parseFloat(race.prize_pool).toLocaleString() + '</span>' +
+          '<span class="status-badge status-' + race.status + '">' + statusLabel + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<table class="ptable"><thead><tr>' +
+        '<th>#</th><th>Name</th>' + (isHorse?'<th>Jockey</th>':'') +
+        '<th>Trainer</th><th>Form</th><th>Odds</th>' +
+        '<th>' + (finished?'Result':'Bet') + '</th>' +
+      '</tr></thead><tbody>' +
+      ps.map(function(p) {
+        var medal = p.position===1?'&#127947;':p.position===2?'&#129352;':p.position===3?'&#129353;':'#'+p.position;
+        var betOrResult = finished
+          ? (p.position ? '<span>' + medal + '</span>' : '&mdash;')
+          : '<button class="bet-btn" data-pid="' + p.id + '" data-pname="' + esc(p.name) + '" data-pnum="' + p.number + '" data-odds="' + p.odds + '" data-racename="' + esc(race.name) + '" data-raceid="' + race.id + '">+ Bet</button>';
+        return '<tr>' +
+          '<td><span class="pnum">' + p.number + '</span></td>' +
+          '<td><div class="pname">' + esc(p.name) + '</div>' +
+            (p.age ? '<div style="font-size:11px;color:#9ca3af">Age: '+p.age+(p.weight?' &middot; '+p.weight:'')+'</div>' : '') +
+          '</td>' +
+          (isHorse ? '<td style="font-size:13px">' + esc(p.jockey||'—') + '</td>' : '') +
+          '<td style="font-size:13px">' + esc(p.trainer||'—') + '</td>' +
+          '<td><span class="form">' + esc(p.form||'—') + '</span></td>' +
+          '<td><span class="odds">' + fmt(p.odds) + '</span></td>' +
+          '<td>' + betOrResult + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+  }
 
-function App() {
-  const [races, setRaces] = useState([]);
-  const [selectedRace, setSelectedRace] = useState(null);
-  const [tab, setTab] = useState('all');
-  const [bets, setBets] = useState([]);
-  const [stats, setStats] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [notif, setNotif] = useState(null);
+  function buildBetSlip() {
+    var bets = state.bets;
+    var totalStake = bets.reduce(function(s,b){ return s+(parseFloat(b.amount)||0); }, 0);
+    var totalPot   = bets.reduce(function(s,b){ return s+((parseFloat(b.amount)||0)*parseFloat(b.odds)); }, 0);
+    var inner = !bets.length
+      ? '<div class="empty-bs"><div class="empty-icon">&#127919;</div>' +
+        '<div style="font-size:14px;font-weight:500">Your bet slip is empty</div>' +
+        '<div style="font-size:12px;margin-top:6px">Click &quot;Bet&quot; on any runner to add</div></div>'
+      : bets.map(function(b) {
+          var pot = b.amount && parseFloat(b.amount)>0
+            ? '<div class="pot-win">&#128176; Potential: $'+(parseFloat(b.amount)*parseFloat(b.odds)).toFixed(2)+'</div>'
+            : '';
+          return '<div class="bet-item" id="bet-'+b.id+'">' +
+            '<div class="bi-header">' +
+              '<div>' +
+                '<div class="bi-pname">#'+b.num+' '+esc(b.name)+'</div>' +
+                '<div class="bi-race">'+esc(b.raceName)+'</div>' +
+              '</div>' +
+              '<button class="rm-btn" data-removeid="'+b.id+'">&times;</button>' +
+            '</div>' +
+            '<div class="bi-odds">Odds: '+fmt(b.odds)+'</div>' +
+            '<select class="btype-sel" data-typeid="'+b.id+'">' +
+              '<option value="win"'+(b.betType==='win'?' selected':'')+'>Win</option>' +
+              '<option value="place"'+(b.betType==='place'?' selected':'')+'>Place</option>' +
+              '<option value="each_way"'+(b.betType==='each_way'?' selected':'')+'>Each Way</option>' +
+            '</select>' +
+            '<input type="number" class="bamount" placeholder="Amount ($)" min="1" value="'+esc(b.amount)+'" data-amtid="'+b.id+'" />' +
+            '<div class="quick-btns">' +
+              [10,20,50,100].map(function(a){ return '<button class="qbtn" data-qamt="'+a+'" data-qid="'+b.id+'">$'+a+'</button>'; }).join('') +
+            '</div>' +
+            pot +
+            '<button class="place-btn" data-placeid="'+b.id+'">Place Bet</button>' +
+          '</div>';
+        }).join('') +
+        (bets.length>1
+          ? '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-top:8px">' +
+            '<div style="font-size:13px;color:#374151;margin-bottom:4px"><strong>Total Stake:</strong> $'+totalStake.toFixed(2)+'</div>' +
+            '<div style="font-size:13px;color:#059669;font-weight:700"><strong>Total Potential:</strong> $'+totalPot.toFixed(2)+'</div>' +
+            '</div>' : '');
+    return '<div class="bet-slip"><div class="bs-title">&#127920; Bet Slip ' +
+      (bets.length>0?'<span class="bet-cnt">'+bets.length+'</span>':'') +
+    '</div>' + inner + '</div>';
+  }
 
-  useEffect(() => { fetchRaces(); fetchStats(); }, [tab]);
+  function buildNotif() {
+    if (!state.notif) return '';
+    return '<div class="notif notif-'+state.notif.type+'">'+esc(state.notif.msg)+'</div>';
+  }
 
-  const fetchRaces = async () => {
-    setLoading(true);
+  // ── Render ───────────────────────────────────────────────────────
+
+  function render() {
+    var activeAmtId = null, selStart = 0, selEnd = 0;
+    var ae = document.activeElement;
+    if (ae && ae.dataset && ae.dataset.amtid) {
+      activeAmtId = ae.dataset.amtid;
+      selStart = ae.selectionStart; selEnd = ae.selectionEnd;
+    }
+
+    var html = '<div class="app">' +
+      buildHeader() + buildStatsBar() + buildNotif() +
+      '<div class="main-layout">' +
+        '<div class="races-panel">' + buildTabs() +
+          (state.selectedRace ? buildRaceDetail() : buildRaceList()) +
+        '</div>' +
+        '<div class="betslip-panel">' + buildBetSlip() + '</div>' +
+      '</div></div>';
+
+    document.getElementById('root').innerHTML = html;
+    attachEvents();
+
+    if (activeAmtId) {
+      var inp = document.querySelector('[data-amtid="'+activeAmtId+'"]');
+      if (inp) { inp.focus(); try { inp.setSelectionRange(selStart, selEnd); } catch(e){} }
+    }
+  }
+
+  function renderBetSlipOnly() {
+    var panel = document.querySelector('.betslip-panel');
+    if (!panel) { render(); return; }
+    var activeAmtId = null, selStart = 0, selEnd = 0;
+    var ae = document.activeElement;
+    if (ae && ae.dataset && ae.dataset.amtid) {
+      activeAmtId = ae.dataset.amtid;
+      selStart = ae.selectionStart; selEnd = ae.selectionEnd;
+    }
+    panel.innerHTML = buildBetSlip();
+    attachBetSlipEvents();
+    if (activeAmtId) {
+      var inp = document.querySelector('[data-amtid="'+activeAmtId+'"]');
+      if (inp) { inp.focus(); try { inp.setSelectionRange(selStart, selEnd); } catch(e){} }
+    }
+  }
+
+  // ── Events ───────────────────────────────────────────────────────
+
+  function attachEvents() {
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        state.tab = btn.dataset.tab;
+        state.selectedRace = null;
+        loadRaces();
+      });
+    });
+
+    document.querySelectorAll('.race-card').forEach(function(card) {
+      card.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('view-btn')) {
+          loadRaceDetail(card.dataset.raceid);
+        }
+      });
+    });
+    document.querySelectorAll('.view-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        loadRaceDetail(btn.dataset.raceid);
+      });
+    });
+
+    var backBtn = document.getElementById('backBtn');
+    if (backBtn) backBtn.addEventListener('click', function() { state.selectedRace = null; render(); });
+
+    document.querySelectorAll('.bet-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        addBet(parseInt(btn.dataset.pid), btn.dataset.pname, parseInt(btn.dataset.pnum),
+               parseFloat(btn.dataset.odds), btn.dataset.racename, parseInt(btn.dataset.raceid));
+      });
+    });
+
+    attachBetSlipEvents();
+  }
+
+  function attachBetSlipEvents() {
+    document.querySelectorAll('.rm-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { removeBet(parseInt(btn.dataset.removeid)); });
+    });
+    document.querySelectorAll('.bamount').forEach(function(inp) {
+      inp.addEventListener('input', function() { updateAmount(parseInt(inp.dataset.amtid), inp.value); });
+    });
+    document.querySelectorAll('.qbtn').forEach(function(btn) {
+      btn.addEventListener('click', function() { updateAmount(parseInt(btn.dataset.qid), btn.dataset.qamt); });
+    });
+    document.querySelectorAll('.btype-sel').forEach(function(sel) {
+      sel.addEventListener('change', function() { updateType(parseInt(sel.dataset.typeid), sel.value); });
+    });
+    document.querySelectorAll('.place-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var bet = state.bets.find(function(b){ return b.id === parseInt(btn.dataset.placeid); });
+        if (bet) doPlaceBet(bet);
+      });
+    });
+  }
+
+  // ── State mutations ──────────────────────────────────────────────
+
+  function addBet(pid, pname, pnum, odds, raceName, raceId) {
+    if (state.bets.find(function(b){ return b.participantId === pid; })) {
+      notify('Already in slip!', 'warning'); return;
+    }
+    state.bets.push({ id: Date.now(), participantId: pid, name: pname, num: pnum, raceName: raceName, raceId: raceId, odds: odds, amount: '', betType: 'win' });
+    notify(pname + ' added!', 'success');
+    render();
+  }
+
+  function removeBet(id) {
+    state.bets = state.bets.filter(function(b){ return b.id !== id; });
+    renderBetSlipOnly();
+  }
+
+  function updateAmount(id, val) {
+    state.bets = state.bets.map(function(b){ return b.id===id ? Object.assign({},b,{amount:val}) : b; });
+    renderBetSlipOnly();
+  }
+
+  function updateType(id, val) {
+    state.bets = state.bets.map(function(b){ return b.id===id ? Object.assign({},b,{betType:val}) : b; });
+    renderBetSlipOnly();
+  }
+
+  async function doPlaceBet(bet) {
+    if (!bet.amount || parseFloat(bet.amount) <= 0) { notify('Enter a valid amount!', 'error'); return; }
     try {
-      let url = '/api/races/?page_size=50';
-      if (tab==='dog') url += '&type=dog';
-      if (tab==='horse') url += '&type=horse';
-      const d = await apiFetch(url);
-      setRaces(d.results || d);
-    } catch(e) {}
-    setLoading(false);
-  };
-
-  const fetchStats = async () => {
-    try { const d = await apiFetch('/api/races/stats/'); setStats(d); } catch(e) {}
-  };
-
-  const fetchDetail = async (id) => {
-    try { const d = await apiFetch(`/api/races/${id}/`); setSelectedRace(d); } catch(e) {}
-  };
-
-  const addBet = (p, race) => {
-    if (bets.find(b=>b.participantId===p.id)) { notify('Already in slip!','warning'); return; }
-    setBets(prev => [...prev, { id: Date.now(), participantId: p.id, name: p.name, num: p.number, raceName: race.name, raceId: race.id, odds: p.odds, amount: '', betType: 'win' }]);
-    notify(`${p.name} added!`, 'success');
-  };
-
-  const removeBet = id => setBets(prev => prev.filter(b=>b.id!==id));
-  const updateAmount = (id, v) => setBets(prev => prev.map(b=>b.id===id?{...b,amount:v}:b));
-  const updateType = (id, v) => setBets(prev => prev.map(b=>b.id===id?{...b,betType:v}:b));
-
-  const placeBet = async (bet) => {
-    if (!bet.amount || parseFloat(bet.amount)<=0) { notify('Enter a valid amount!','error'); return; }
-    try {
-      await apiFetch('/api/bets/', { method:'POST', body: JSON.stringify({ participant: bet.participantId, amount: parseFloat(bet.amount), bet_type: bet.betType, bettor_name: 'Guest' }) });
-      setBets(prev => prev.filter(b=>b.id!==bet.id));
-      notify(`Bet placed on ${bet.name}!`, 'success');
+      await apiFetch('/api/bets/', {
+        method: 'POST',
+        body: JSON.stringify({ participant: bet.participantId, amount: parseFloat(bet.amount), bet_type: bet.betType, bettor_name: 'Guest' })
+      });
+      state.bets = state.bets.filter(function(b){ return b.id !== bet.id; });
+      notify('Bet placed on ' + bet.name + '!', 'success');
       fetchStats();
-    } catch(e) { notify(e.error||'Failed to place bet','error'); }
-  };
+      render();
+    } catch(e) { notify((e && e.error) || 'Failed to place bet', 'error'); }
+  }
 
-  const notify = (msg, type) => { setNotif({msg,type}); setTimeout(()=>setNotif(null),3000); };
+  var notifTimer = null;
+  function notify(msg, type) {
+    state.notif = { msg: msg, type: type };
+    var notifEl = document.querySelector('.notif');
+    if (notifEl) { notifEl.remove(); }
+    var el = document.createElement('div');
+    el.className = 'notif notif-' + type;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    if (notifTimer) clearTimeout(notifTimer);
+    notifTimer = setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); state.notif = null; }, 3000);
+  }
 
-  return (
-    <div className="app">
-      <Header stats={stats} />
-      <StatsBar stats={stats} />
-      {notif&&<div className={`notif notif-${notif.type}`}>{notif.msg}</div>}
-      <div className="main-layout">
-        <div className="races-panel">
-          <div className="tabs">
-            {[['all','🏁 All Races'],['dog','🐕 Dog Racing'],['horse','🐎 Horse Racing']].map(([k,label])=>(
-              <button key={k} className={`tab-btn${tab===k?' active':''}`}
-                onClick={()=>{setTab(k);setSelectedRace(null);}}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {selectedRace
-            ? <RaceDetail race={selectedRace} onBack={()=>setSelectedRace(null)} onAddBet={addBet}/>
-            : <RaceList races={races} loading={loading} onSelect={r=>fetchDetail(r.id)}/>
-          }
-        </div>
-        <div className="betslip-panel">
-          <BetSlip bets={bets} onRemove={removeBet} onUpdateAmount={updateAmount} onUpdateType={updateType} onPlace={placeBet}/>
-        </div>
-      </div>
-    </div>
-  );
-}
+  // ── Data loading ─────────────────────────────────────────────────
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+  async function loadRaces() {
+    state.loading = true;
+    state.races = [];
+    render();
+    try {
+      var url = '/api/races/?page_size=50';
+      if (state.tab === 'dog') url += '&type=dog';
+      if (state.tab === 'horse') url += '&type=horse';
+      var d = await apiFetch(url);
+      state.races = d.results || d;
+    } catch(e) {}
+    state.loading = false;
+    render();
+  }
+
+  async function loadRaceDetail(id) {
+    try {
+      var d = await apiFetch('/api/races/' + id + '/');
+      state.selectedRace = d;
+      render();
+    } catch(e) {}
+  }
+
+  async function fetchStats() {
+    try {
+      var d = await apiFetch('/api/races/stats/');
+      state.stats = d;
+      var hdr = document.querySelector('.header');
+      if (hdr) {
+        hdr.outerHTML = buildHeader();
+      }
+      var sb = document.querySelector('.stats-bar');
+      if (sb) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = buildStatsBar();
+        sb.parentNode.replaceChild(tmp.firstChild, sb);
+      }
+    } catch(e) {}
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────
+  render();
+  loadRaces();
+  fetchStats();
+
+})();
 </script>
 </body>
 </html>
