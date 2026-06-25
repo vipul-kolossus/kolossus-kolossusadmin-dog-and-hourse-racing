@@ -11,3 +11,5 @@ backend/staticfiles/
 backend/db.sqlite3
 *.log
 .DS_Store
+deploy_*.json
+extract_deploy*.py
