@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EdgeBet Pro - Dog &amp; Horse Racing</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+    .app { min-height: 100vh; }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      padding: 0 24px; display: flex; align-items: center;
+      justify-content: space-between; height: 64px;
+      box-shadow: 0 2px 20px rgba(0,0,0,.3); position: sticky; top: 0; z-index: 100;
+    }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .header-logo { font-size: 28px; }
+    .header-title { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+    .header-title span { color: #f72585; }
+    .live-badge {
+      background: #f72585; color: #fff; font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; text-transform: uppercase;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .header-stats { display: flex; gap: 20px; }
+    .hstat { text-align: center; }
+    .hstat-v { font-size: 18px; font-weight: 700; color: #7b2ff7; }
+    .hstat-l { font-size: 10px; color: rgba(255,255,255,.6); text-transform: uppercase; }
+    .stats-bar {
+      background: #fff; border-bottom: 1px solid #e8ecf0;
+      padding: 12px 24px; display: flex; gap: 32px; overflow-x: auto;
+    }
+    .stat-item { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    .stat-icon { font-size: 18px; }
+    .stat-info { display: flex; flex-direction: column; }
+    .stat-value { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+    .stat-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .3px; }
+    .main-layout { display: grid; grid-template-columns: 1fr 340px; min-height: calc(100vh - 120px); }
+    .races-panel { padding: 20px; overflow-y: auto; }
+    .betslip-panel {
+      background: #fff; border-left: 1px solid #e8ecf0;
+      position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto;
+    }
+    .tabs {
+      display: flex; gap: 8px; margin-bottom: 20px; background: #fff;
+      padding: 6px; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); width: fit-content;
+    }
+    .tab-btn {
+      padding: 8px 20px; border: none; background: transparent; border-radius: 8px;
+      cursor: pointer; font-size: 13px; font-weight: 600; color: #6b7280; transition: all .2s; font-family: inherit;
+    }
+    .tab-btn:hover { background: #f3f4f6; color: #1a1a2e; }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #1a1a2e, #0f3460); color: #fff;
+      box-shadow: 0 2px 8px rgba(15,52,96,.3);
+    }
+    .race-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+    .race-card {
+      background: #fff; border-radius: 14px; overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08); cursor: pointer;
+      transition: transform .2s, box-shadow .2s; border: 1px solid #e8ecf0;
+    }
+    .race-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .race-card-header {
+      padding: 16px; display: flex; justify-content: space-between;
+      align-items: flex-start; border-bottom: 1px solid #f3f4f6;
+    }
+    .type-badge {
+      display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+      padding: 4px 10px; border-radius: 20px; background: #f3f4f6; color: #374151;
+    }
+    .status-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; }
+    .status-live { background: #fef2f2; color: #dc2626; animation: pulse 1.5s infinite; }
+    .status-upcoming { background: #fef3c7; color: #d97706; }
+    .status-finished { background: #f3f4f6; color: #6b7280; }
+    .race-card-body { padding: 16px; }
+    .race-name { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .race-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .meta-item { font-size: 12px; color: #6b7280; }
+    .race-card-footer {
+      padding: 12px 16px; background: #f9fafb;
+      display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f3f4f6;
+    }
+    .prize { font-size: 13px; font-weight: 700; color: #059669; }
+    .view-btn {
+      font-size: 12px; font-weight: 600; color: #0f3460; background: none;
+      border: 1px solid #0f3460; padding: 5px 14px; border-radius: 8px; cursor: pointer; transition: all .2s; font-family: inherit;
+    }
+    .view-btn:hover { background: #0f3460; color: #fff; }
+    .race-detail { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .detail-header { background: linear-gradient(135deg, #1a1a2e, #0f3460); padding: 20px 24px; color: #fff; }
+    .back-btn {
+      background: rgba(255,255,255,.15); border: none; color: #fff; padding: 6px 14px;
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; margin-bottom: 12px; transition: background .2s; font-family: inherit;
+    }
+    .back-btn:hover { background: rgba(255,255,255,.25); }
+    .detail-title { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+    .detail-meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; opacity: .85; }
+    .ptable { width: 100%; border-collapse: collapse; }
+    .ptable th {
+      background: #f9fafb; padding: 12px 16px; text-align: left;
+      font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase;
+      border-bottom: 2px solid #e8ecf0;
+    }
+    .ptable td { padding: 14px 16px; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+    .ptable tr:hover td { background: #f9fafb; }
+    .pnum {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; background: #1a1a2e; color: #fff;
+      border-radius: 50%; font-size: 12px; font-weight: 700;
+    }
+    .pname { font-weight: 600; color: #1a1a2e; }
+    .odds { font-size: 16px; font-weight: 800; color: #f72585; }
+    .form { font-size: 12px; color: #6b7280; font-family: monospace; }
+    .bet-btn {
+      background: linear-gradient(135deg, #f72585, #7b2ff7); color: #fff; border: none;
+      padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700;
+      transition: opacity .2s; font-family: inherit;
+    }
+    .bet-btn:hover { opacity: .85; }
+    .bet-slip { padding: 16px; }
+    .bs-title {
+      font-size: 16px; font-weight: 800; color: #1a1a2e; padding-bottom: 12px;
+      border-bottom: 2px solid #f3f4f6; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .bet-cnt {
+      background: #f72585; color: #fff; font-size: 11px; font-weight: 700;
+      width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .bet-item {
+      background: #f9fafb; border: 1px solid #e8ecf0; border-radius: 10px; padding: 12px; margin-bottom: 10px;
+    }
+    .bi-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .bi-pname { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+    .bi-race { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .rm-btn { background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 18px; line-height: 1; }
+    .rm-btn:hover { color: #ef4444; }
+    .bi-odds { font-size: 18px; font-weight: 800; color: #f72585; margin-bottom: 10px; }
+    .btype-sel {
+      width: 100%; padding: 7px 10px; border: 1px solid #e8ecf0; border-radius: 8px;
+      font-size: 13px; margin-bottom: 8px; background: #fff; color: #374151; font-family: inherit;
+    }
+    .bamount {
+      width: 100%; padding: 7px 10px; border: 1px solid #e8ecf0; border-radius: 8px;
+      font-size: 13px; color: #374151; margin-bottom: 8px; font-family: inherit;
+    }
+    .bamount:focus { outline: none; border-color: #0f3460; }
+    .quick-btns { display: flex; gap: 4px; margin-bottom: 8px; }
+    .qbtn {
+      padding: 5px 8px; border: 1px solid #e8ecf0; background: #fff;
+      border-radius: 6px; font-size: 11px; font-weight: 600; color: #374151; cursor: pointer; font-family: inherit;
+    }
+    .qbtn:hover { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+    .pot-win { font-size: 12px; color: #059669; font-weight: 600; margin-bottom: 10px; }
+    .place-btn {
+      width: 100%; background: linear-gradient(135deg, #059669, #10b981); color: #fff; border: none;
+      padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    .place-btn:hover { opacity: .9; }
+    .empty-bs { text-align: center; padding: 40px 20px; color: #9ca3af; }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .loading { display: flex; justify-content: center; align-items: center; padding: 60px; flex-direction: column; gap: 16px; }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid #e8ecf0; border-top-color: #0f3460;
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .notif {
+      position: fixed; top: 80px; right: 20px; padding: 12px 20px; border-radius: 10px;
+      font-size: 14px; font-weight: 600; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,.15);
+      animation: slideIn .3s ease;
+    }
+    @keyframes slideIn { from{transform:translateX(100px);opacity:0} to{transform:translateX(0);opacity:1} }
+    .notif-success { background: #059669; color: #fff; }
+    .notif-error { background: #dc2626; color: #fff; }
+    .notif-warning { background: #d97706; color: #fff; }
+    @media (max-width: 768px) {
+      .main-layout { grid-template-columns: 1fr; }
+      .betslip-panel { position: fixed; bottom: 0; right: 0; left: 0; height: auto; max-height: 50vh; border-left: none; border-top: 1px solid #e8ecf0; z-index: 50; }
+      .header-stats { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const API = '';
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+function getTimeLabel(race) {
+  if (race.status === 'live') return '🔴 LIVE NOW';
+  if (race.status === 'finished') return '✅ Finished';
+  const diff = new Date(race.start_time) - new Date();
+  if (diff < 0) return 'Starting...';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `In ${mins}m`;
+  return `In ${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+function fmt(n) { return parseFloat(n).toFixed(2); }
+
+function Header({ stats }) {
+  return (
+    <header className="header">
+      <div className="header-brand">
+        <span className="header-logo">🏆</span>
+        <h1 className="header-title">EdgeBet <span>Pro</span></h1>
+        {stats.live_races > 0 && <span className="live-badge">🔴 {stats.live_races} Live</span>}
+      </div>
+      <div className="header-stats">
+        <div className="hstat"><div className="hstat-v">{stats.total_races || 0}</div><div className="hstat-l">Races</div></div>
+        <div className="hstat"><div className="hstat-v">{stats.total_bets || 0}</div><div className="hstat-l">Bets</div></div>
+        <div className="hstat"><div className="hstat-v">${(stats.total_wagered || 0).toFixed(0)}</div><div className="hstat-l">Wagered</div></div>
+      </div>
+    </header>
+  );
+}
+
+function StatsBar({ stats }) {
+  return (
+    <div className="stats-bar">
+      {[
+        { icon:'🏁', val: stats.total_races||0, label:'Total Races' },
+        { icon:'🔴', val: stats.live_races||0, label:'Live Now' },
+        { icon:'🐕', val: stats.dog_races||0, label:'Dog Races' },
+        { icon:'🐎', val: stats.horse_races||0, label:'Horse Races' },
+        { icon:'🎯', val: stats.total_bets||0, label:'Bets Placed' },
+        { icon:'💰', val: `$${(stats.total_wagered||0).toFixed(0)}`, label:'Total Wagered' },
+      ].map(s => (
+        <div className="stat-item" key={s.label}>
+          <span className="stat-icon">{s.icon}</span>
+          <div className="stat-info">
+            <span className="stat-value">{s.val}</span>
+            <span className="stat-label">{s.label}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RaceList({ races, loading, onSelect }) {
+  if (loading) return <div className="loading"><div className="spinner"/><p style={{color:'#6b7280'}}>Loading races...</p></div>;
+  if (!races.length) return <div className="loading"><p style={{color:'#6b7280',fontSize:16}}>No races found.</p></div>;
+  return (
+    <div className="race-grid">
+      {races.map(r => (
+        <div className="race-card" key={r.id} onClick={() => onSelect(r)}>
+          <div className="race-card-header">
+            <span className="type-badge">{r.race_type === 'dog' ? '🐕 Dog' : '🐎 Horse'}</span>
+            <span className={`status-badge status-${r.status}`}>
+              {r.status==='live'?'🔴 LIVE':r.status==='upcoming'?'⏰ Upcoming':'✅ Finished'}
+            </span>
+          </div>
+          <div className="race-card-body">
+            <h3 className="race-name">{r.name}</h3>
+            <div className="race-meta">
+              <span className="meta-item">📍 {r.track}</span>
+              <span className="meta-item">📏 {r.distance}</span>
+              <span className="meta-item">🐾 {r.participant_count} runners</span>
+            </div>
+            <div style={{fontSize:13,fontWeight:600,color:r.status==='live'?'#dc2626':'#374151'}}>{getTimeLabel(r)}</div>
+          </div>
+          <div className="race-card-footer">
+            <span className="prize">💰 Prize: ${parseFloat(r.prize_pool).toLocaleString()}</span>
+            <button className="view-btn">View Odds →</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RaceDetail({ race, onBack, onAddBet }) {
+  const finished = race.status === 'finished';
+  const ps = [...(race.participants||[])].sort((a,b) => a.number - b.number);
+  return (
+    <div className="race-detail">
+      <div className="detail-header">
+        <button className="back-btn" onClick={onBack}>← Back</button>
+        <h2 className="detail-title">{race.name}</h2>
+        <div className="detail-meta">
+          <span>{race.race_type==='dog'?'🐕 Dog Racing':'🐎 Horse Racing'}</span>
+          <span>📍 {race.track}</span>
+          <span>📏 {race.distance}</span>
+          <span>💰 ${parseFloat(race.prize_pool).toLocaleString()}</span>
+          <span className={`status-badge status-${race.status}`}>{race.status==='live'?'🔴 LIVE':race.status==='upcoming'?'⏰ Upcoming':'✅ Finished'}</span>
+        </div>
+      </div>
+      <table className="ptable">
+        <thead>
+          <tr>
+            <th>#</th><th>Name</th>
+            {race.race_type==='horse'&&<th>Jockey</th>}
+            <th>Trainer</th><th>Form</th><th>Odds</th>
+            <th>{finished?'Result':'Bet'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ps.map(p => (
+            <tr key={p.id}>
+              <td><span className="pnum">{p.number}</span></td>
+              <td>
+                <div className="pname">{p.name}</div>
+                {p.age&&<div style={{fontSize:11,color:'#9ca3af'}}>Age: {p.age}{p.weight?` · ${p.weight}`:''}</div>}
+              </td>
+              {race.race_type==='horse'&&<td style={{fontSize:13}}>{p.jockey||'—'}</td>}
+              <td style={{fontSize:13}}>{p.trainer||'—'}</td>
+              <td><span className="form">{p.form||'—'}</span></td>
+              <td><span className="odds">{fmt(p.odds)}</span></td>
+              <td>
+                {finished ? (
+                  p.position ? <span>{p.position===1?'🥇':p.position===2?'🥈':p.position===3?'🥉':`#${p.position}`}</span> : '—'
+                ) : (
+                  <button className="bet-btn" onClick={() => onAddBet(p, race)}>+ Bet</button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BetSlip({ bets, onRemove, onUpdateAmount, onUpdateType, onPlace }) {
+  const totalStake = bets.reduce((s,b) => s + (parseFloat(b.amount)||0), 0);
+  const totalPot = bets.reduce((s,b) => s + ((parseFloat(b.amount)||0)*parseFloat(b.odds)), 0);
+  return (
+    <div className="bet-slip">
+      <div className="bs-title">🎰 Bet Slip {bets.length>0&&<span className="bet-cnt">{bets.length}</span>}</div>
+      {!bets.length ? (
+        <div className="empty-bs">
+          <div className="empty-icon">🎯</div>
+          <div style={{fontSize:14,fontWeight:500}}>Your bet slip is empty</div>
+          <div style={{fontSize:12,marginTop:6}}>Click &quot;Bet&quot; on any runner to add</div>
+        </div>
+      ) : (
+        <>
+          {bets.map(b => (
+            <div className="bet-item" key={b.id}>
+              <div className="bi-header">
+                <div>
+                  <div className="bi-pname">#{b.num} {b.name}</div>
+                  <div className="bi-race">{b.raceName}</div>
+                </div>
+                <button className="rm-btn" onClick={() => onRemove(b.id)}>×</button>
+              </div>
+              <div className="bi-odds">Odds: {fmt(b.odds)}</div>
+              <select className="btype-sel" value={b.betType} onChange={e=>onUpdateType(b.id,e.target.value)}>
+                <option value="win">Win</option>
+                <option value="place">Place</option>
+                <option value="each_way">Each Way</option>
+              </select>
+              <input type="number" className="bamount" placeholder="Amount ($)" min="1"
+                value={b.amount} onChange={e=>onUpdateAmount(b.id,e.target.value)} />
+              <div className="quick-btns">
+                {[10,20,50,100].map(a=>(
+                  <button key={a} className="qbtn" onClick={()=>onUpdateAmount(b.id,String(a))}>$\{a}</button>
+                ))}
+              </div>
+              {b.amount&&parseFloat(b.amount)>0&&(
+                <div className="pot-win">💰 Potential: ${(parseFloat(b.amount)*parseFloat(b.odds)).toFixed(2)}</div>
+              )}
+              <button className="place-btn" onClick={()=>onPlace(b)}>Place Bet</button>
+            </div>
+          ))}
+          {bets.length>1&&(
+            <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:10,padding:12,marginTop:8}}>
+              <div style={{fontSize:13,color:'#374151',marginBottom:4}}><strong>Total Stake:</strong> ${totalStake.toFixed(2)}</div>
+              <div style={{fontSize:13,color:'#059669',fontWeight:700}}><strong>Total Potential:</strong> ${totalPot.toFixed(2)}</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [races, setRaces] = useState([]);
+  const [selectedRace, setSelectedRace] = useState(null);
+  const [tab, setTab] = useState('all');
+  const [bets, setBets] = useState([]);
+  const [stats, setStats] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [notif, setNotif] = useState(null);
+
+  useEffect(() => { fetchRaces(); fetchStats(); }, [tab]);
+
+  const fetchRaces = async () => {
+    setLoading(true);
+    try {
+      let url = '/api/races/?page_size=50';
+      if (tab==='dog') url += '&type=dog';
+      if (tab==='horse') url += '&type=horse';
+      const d = await apiFetch(url);
+      setRaces(d.results || d);
+    } catch(e) {}
+    setLoading(false);
+  };
+
+  const fetchStats = async () => {
+    try { const d = await apiFetch('/api/races/stats/'); setStats(d); } catch(e) {}
+  };
+
+  const fetchDetail = async (id) => {
+    try { const d = await apiFetch(`/api/races/${id}/`); setSelectedRace(d); } catch(e) {}
+  };
+
+  const addBet = (p, race) => {
+    if (bets.find(b=>b.participantId===p.id)) { notify('Already in slip!','warning'); return; }
+    setBets(prev => [...prev, { id: Date.now(), participantId: p.id, name: p.name, num: p.number, raceName: race.name, raceId: race.id, odds: p.odds, amount: '', betType: 'win' }]);
+    notify(`${p.name} added!`, 'success');
+  };
+
+  const removeBet = id => setBets(prev => prev.filter(b=>b.id!==id));
+  const updateAmount = (id, v) => setBets(prev => prev.map(b=>b.id===id?{...b,amount:v}:b));
+  const updateType = (id, v) => setBets(prev => prev.map(b=>b.id===id?{...b,betType:v}:b));
+
+  const placeBet = async (bet) => {
+    if (!bet.amount || parseFloat(bet.amount)<=0) { notify('Enter a valid amount!','error'); return; }
+    try {
+      await apiFetch('/api/bets/', { method:'POST', body: JSON.stringify({ participant: bet.participantId, amount: parseFloat(bet.amount), bet_type: bet.betType, bettor_name: 'Guest' }) });
+      setBets(prev => prev.filter(b=>b.id!==bet.id));
+      notify(`Bet placed on ${bet.name}!`, 'success');
+      fetchStats();
+    } catch(e) { notify(e.error||'Failed to place bet','error'); }
+  };
+
+  const notify = (msg, type) => { setNotif({msg,type}); setTimeout(()=>setNotif(null),3000); };
+
+  return (
+    <div className="app">
+      <Header stats={stats} />
+      <StatsBar stats={stats} />
+      {notif&&<div className={`notif notif-${notif.type}`}>{notif.msg}</div>}
+      <div className="main-layout">
+        <div className="races-panel">
+          <div className="tabs">
+            {[['all','🏁 All Races'],['dog','🐕 Dog Racing'],['horse','🐎 Horse Racing']].map(([k,label])=>(
+              <button key={k} className={`tab-btn${tab===k?' active':''}`}
+                onClick={()=>{setTab(k);setSelectedRace(null);}}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {selectedRace
+            ? <RaceDetail race={selectedRace} onBack={()=>setSelectedRace(null)} onAddBet={addBet}/>
+            : <RaceList races={races} loading={loading} onSelect={r=>fetchDetail(r.id)}/>
+          }
+        </div>
+        <div className="betslip-panel">
+          <BetSlip bets={bets} onRemove={removeBet} onUpdateAmount={updateAmount} onUpdateType={updateType} onPlace={placeBet}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>

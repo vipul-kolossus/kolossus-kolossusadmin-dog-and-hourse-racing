@@ -1,13 +1,3 @@
-# Stage 1: Build React frontend
-FROM node:18-alpine AS frontend-builder
-WORKDIR /frontend
-COPY frontend/package.json ./
-RUN npm install --legacy-peer-deps
-COPY frontend/ ./
-ENV PUBLIC_URL=/static/react
-RUN CI=false npm run build
-
-# Stage 2: Django backend
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -21,8 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./
 
-RUN mkdir -p static/react
-COPY --from=frontend-builder /frontend/build/ ./static/react/
+RUN mkdir -p static
+
+COPY frontend/index.html ./static/index.html
 
 RUN python manage.py makemigrations --noinput && \
     python manage.py migrate --noinput && \
